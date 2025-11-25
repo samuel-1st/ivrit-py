@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import os
 import time
 import io
@@ -19,6 +20,8 @@ import requests
 
 from . import utils
 from .types import Segment, Word
+
+logger = logging.getLogger(__name__)
 
 
 def _copy_segment_extra_data(segment, language: Optional[str] = None) -> dict:
@@ -434,7 +437,7 @@ class WhisperSession(TranscriptionSession):
         self.total_duration = len(self.pcm_bytes_buffer) / (2 * self.sample_rate)
 
         if self.verbose:
-            print(
+            logger.info(
                 f"Session {self.session_id}: Added {len(audio_bytes)} bytes, "
                 f"total duration: {self.total_duration:.2f}s"
             )
@@ -444,7 +447,7 @@ class WhisperSession(TranscriptionSession):
         if complete_segments:
             self.accumulated_segments.extend(complete_segments)
             if self.verbose:
-                print(
+                logger.info(
                     f"Session {self.session_id}: Found {len(complete_segments)} complete segments"
                 )
     
@@ -492,7 +495,7 @@ class WhisperSession(TranscriptionSession):
         self.total_duration = 0.0
         
         if self.verbose:
-            print(f"Session {self.session_id}: Reset")
+            logger.info(f"Session {self.session_id}: Reset")
     
     def flush(self) -> List[Segment]:
         """
@@ -516,7 +519,7 @@ class WhisperSession(TranscriptionSession):
             self.accumulated_segments.extend(remaining_segments)
             
             if self.verbose:
-                print(f"Session {self.session_id}: Flushed {len(remaining_segments)} final segments")
+                logger.info(f"Session {self.session_id}: Flushed {len(remaining_segments)} final segments")
             
             return remaining_segments
         
@@ -589,7 +592,7 @@ class WhisperSession(TranscriptionSession):
                         self.pcm_bytes_buffer = self.pcm_bytes_buffer[bytes_to_remove:]
                         
                         if self.verbose:
-                            print(f"Session {self.session_id}: Trimmed {samples_to_remove} samples ({last_complete_end_time:.2f}s)")
+                            logger.info(f"Session {self.session_id}: Trimmed {samples_to_remove} samples ({last_complete_end_time:.2f}s)")
                     
                     return complete_segments
                 else:
@@ -598,7 +601,7 @@ class WhisperSession(TranscriptionSession):
             
         except Exception as e:
             if self.verbose:
-                print(f"Error during session buffer transcription: {e}")
+                logger.error(f"Error during session buffer transcription: {e}")
             return []
         finally:
             # Close the WAV buffer
@@ -659,7 +662,7 @@ class FasterWhisperModel(TranscriptionModel):
         # Add any additional kwargs passed to the constructor
         args.update(self.model_kwargs)
         
-        print(f'Loading faster-whisper model: {self.model_path} on {device} with index: {device_index or 0}')
+        logger.info(f'Loading faster-whisper model: {self.model_path} on {device} with index: {device_index or 0}')
         return faster_whisper.WhisperModel(self.model_path, **args)
     
     def create_session(self, language: Optional[str] = None, sample_rate: int = 16000, 
@@ -685,7 +688,7 @@ class FasterWhisperModel(TranscriptionModel):
         )
         
         if verbose:
-            print(f"Created FasterWhisper transcription session: {session_id}")
+            logger.info(f"Created FasterWhisper transcription session: {session_id}")
         
         return session
 
@@ -714,12 +717,12 @@ class FasterWhisperModel(TranscriptionModel):
         audio_path = utils.get_audio_file_path(path=path, url=url, blob=blob, verbose=verbose)
         
         if verbose:
-            print(f"Using faster-whisper engine with model: {self.model}")
-            print(f"Processing file: {audio_path}")
+            logger.info(f"Using faster-whisper engine with model: {self.model}")
+            logger.info(f"Processing file: {audio_path}")
             if self.model_object:
-                print(f"Using pre-loaded model: {self.model_object}")
+                logger.info(f"Using pre-loaded model: {self.model_object}")
             if diarize:
-                print("Diarization is enabled")
+                logger.info("Diarization is enabled")
         
         try:
             # Transcribe using faster-whisper directly with file path
@@ -781,7 +784,7 @@ class FasterWhisperModel(TranscriptionModel):
                 
         except Exception as e:
             if verbose:
-                print(f"Error during transcription: {e}")
+                logger.error(f"Error during transcription: {e}")
             raise
         
         finally:
@@ -844,7 +847,7 @@ class StableWhisperModel(TranscriptionModel):
         # Add any additional kwargs passed to the constructor
         args.update(self.model_kwargs)
         
-        print(f'Loading stable-whisper model: {self.model_path} on {device} with index: {device_index or 0}')
+        logger.info(f'Loading stable-whisper model: {self.model_path} on {device} with index: {device_index or 0}')
         return stable_whisper.load_faster_whisper(self.model_path, **args)
     
     def create_session(self, language: Optional[str] = None, sample_rate: int = 16000, 
@@ -870,7 +873,7 @@ class StableWhisperModel(TranscriptionModel):
         )
         
         if verbose:
-            print(f"Created StableWhisper transcription session: {session_id}")
+            logger.info(f"Created StableWhisper transcription session: {session_id}")
         
         return session
 
@@ -894,12 +897,12 @@ class StableWhisperModel(TranscriptionModel):
         audio_path = utils.get_audio_file_path(path=path, url=url, blob=blob, verbose=verbose)
         
         if verbose:
-            print(f"Using stable-whisper engine with model: {self.model}")
-            print(f"Processing file: {audio_path}")
+            logger.info(f"Using stable-whisper engine with model: {self.model}")
+            logger.info(f"Processing file: {audio_path}")
             if self.model_object:
-                print(f"Using pre-loaded model: {self.model_object}")
+                logger.info(f"Using pre-loaded model: {self.model_object}")
             if diarize:
-                print("Diarization is enabled")
+                logger.info("Diarization is enabled")
         
         try:
             # Transcribe using stable-whisper with word timestamps
@@ -962,7 +965,155 @@ class StableWhisperModel(TranscriptionModel):
                 
         except Exception as e:
             if verbose:
-                print(f"Error during transcription: {e}")
+                logger.error(f"Error during transcription: {e}")
+            raise
+        
+        finally:
+            # Clean up temporary files created for URL downloads or blob processing
+            if (url is not None or blob is not None) and os.path.exists(audio_path):
+                os.remove(audio_path)
+
+
+class WhisperCppModel(TranscriptionModel):
+    """whisper.cpp transcription model via pywhispercpp"""
+    
+    def __init__(self, model: str, n_threads: int = None, **kwargs):
+        """
+        Initialize a whisper.cpp model.
+        
+        Args:
+            model: Model name (e.g., 'base', 'small', 'medium', 'large') or path to a .bin model file
+            n_threads: Number of threads to use for transcription (default: auto-detect)
+            **kwargs: Additional arguments passed to pywhispercpp Model constructor
+        """
+        super().__init__(engine="whisper-cpp", model=model)
+        
+        # Check for required dependencies
+        utils.check_dependencies(['pywhispercpp.model'], 'WhisperCppModel')
+        
+        self.model_path = model
+        self.n_threads = n_threads
+        self.model_kwargs = kwargs
+        
+        # Load the model immediately
+        self.model_object = self._load_whisper_cpp_model()
+    
+    def _load_whisper_cpp_model(self) -> Any:
+        """
+        Load the actual whisper.cpp model via pywhispercpp.
+        """
+        from pywhispercpp.model import Model
+        
+        logger.info(f'Loading whisper.cpp model: {self.model_path}')
+        
+        args = {}
+        if self.n_threads is not None:
+            args['n_threads'] = self.n_threads
+        
+        # Add any additional kwargs passed to the constructor
+        args.update(self.model_kwargs)
+        
+        return Model(self.model_path, **args)
+    
+    def create_session(self, language: Optional[str] = None, sample_rate: int = 16000, 
+                      verbose: bool = False) -> TranscriptionSession:
+        """
+        Create a new transcription session for incremental audio processing.
+        
+        Args:
+            language: Language code for transcription (e.g., 'he' for Hebrew, 'en' for English)
+            sample_rate: Audio sample rate (default: 16000 Hz)
+            verbose: Whether to enable verbose output
+            
+        Returns:
+            WhisperSession object for incremental transcription
+        """
+        session_id = str(uuid4())
+        session = WhisperSession(
+            session_id=session_id,
+            model=self,
+            language=language,
+            sample_rate=sample_rate,
+            verbose=verbose
+        )
+        
+        if verbose:
+            logger.info(f"Created WhisperCpp transcription session: {session_id}")
+        
+        return session
+
+    def transcribe_core(
+        self, 
+        *, 
+        path: Optional[str] = None,
+        url: Optional[str] = None,
+        blob: Optional[str] = None,
+        language: Optional[str] = None,
+        diarize: bool = False,
+        diarization_args: Optional[Dict[str, Any]] = None,
+        output_options: Dict[str, Any] = None,
+        verbose: bool = False,
+        **kwargs,
+    ) -> Generator[Segment, None, None]:
+        """
+        Transcribe using whisper.cpp engine via pywhispercpp.
+        """
+        # Default output_options if not provided
+        if output_options is None:
+            output_options = {'word_timestamps': True, 'extra_data': True}
+        
+        # Validate diarization support
+        if diarize:
+            raise NotImplementedError("Diarization (diarize=True) is not supported with whisper.cpp engine. "
+                                    "Please use StableWhisperModel or RunPodModel with core_engine='stable-whisper'.")
+        
+        # Handle URL download or blob processing if needed
+        audio_path = utils.get_audio_file_path(path=path, url=url, blob=blob, verbose=verbose)
+        
+        if verbose:
+            logger.info(f"Using whisper.cpp engine with model: {self.model}")
+            logger.info(f"Processing file: {audio_path}")
+        
+        try:
+            # Build transcribe arguments
+            transcribe_args = {}
+            if language is not None:
+                transcribe_args['language'] = language
+            
+            # Add any extra kwargs
+            transcribe_args.update(kwargs)
+            
+            # Transcribe using pywhispercpp
+            # Returns list of Segment namedtuples with t0, t1 (centiseconds), text
+            segments = self.model_object.transcribe(audio_path, **transcribe_args)
+            
+            for segment in segments:
+                # Convert centiseconds to seconds
+                # pywhispercpp uses t0/t1 in centiseconds (1/100th of a second)
+                start_time = segment.t0 / 100.0
+                end_time = segment.t1 / 100.0
+                
+                # Build extra_data dictionary if requested
+                segment_extra_data = {}
+                if output_options.get('extra_data', True):
+                    if language:
+                        segment_extra_data['language'] = language
+                
+                # Create Segment object
+                # Note: pywhispercpp doesn't provide word-level timestamps in basic API
+                segment_obj = Segment(
+                    text=segment.text,
+                    start=start_time,
+                    end=end_time,
+                    words=[],
+                    extra_data=segment_extra_data
+                )
+                
+                yield segment_obj
+                
+        except Exception as e:
+            if verbose:
+                logger.error(f"Error during transcription: {e}")
             raise
         
         finally:
@@ -1038,7 +1189,7 @@ class RunPodJob:
                     return
 
             except json.JSONDecodeError as e:
-                print(f"Failed to parse JSON response: {e}")
+                logger.error(f"Failed to parse JSON response: {e}")
                 return
 
     def cancel(self):
@@ -1123,7 +1274,7 @@ class AsyncRunPodJob:
                             return
 
                     except json.JSONDecodeError as e:
-                        print(f"Failed to parse JSON response: {e}")
+                        logger.error(f"Failed to parse JSON response: {e}")
                         return
 
     async def cancel(self):
@@ -1184,8 +1335,8 @@ class RunPodModel(TranscriptionModel):
         )
         
         if verbose:
-            print(f"Created RunPod transcription session: {session_id}")
-            print("Note: RunPod sessions buffer audio locally and transcribe on flush()")
+            logger.info(f"Created RunPod transcription session: {session_id}")
+            logger.info("Note: RunPod sessions buffer audio locally and transcribe on flush()")
         
         return session
 
@@ -1224,9 +1375,9 @@ class RunPodModel(TranscriptionModel):
             raise ValueError("Must specify either 'path', 'url', or 'blob'")
         
         if verbose:
-            print(f"Using RunPod engine with model: {self.model}")
-            print(f"Payload type: {payload_type}")
-            print(f"Data source: {data_source}")
+            logger.info(f"Using RunPod engine with model: {self.model}")
+            logger.info(f"Payload type: {payload_type}")
+            logger.info(f"Data source: {data_source}")
         
         # Prepare payload
         payload = {
@@ -1270,7 +1421,7 @@ class RunPodModel(TranscriptionModel):
         
         # Wait for task to be queued
         if verbose:
-            print("Waiting for task to be queued...")
+            logger.info("Waiting for task to be queued...")
         
         for i in range(self.IN_QUEUE_TIMEOUT):
             if run_request.status() == "IN_QUEUE":
@@ -1279,7 +1430,7 @@ class RunPodModel(TranscriptionModel):
             break
         
         if verbose:
-            print(f"Task status: {run_request.status()}")
+            logger.info(f"Task status: {run_request.status()}")
         
         # Collect streaming results
         timeouts = 0
@@ -1300,7 +1451,7 @@ class RunPodModel(TranscriptionModel):
                 if timeouts > self.MAX_STREAM_TIMEOUTS:
                     raise Exception(f"Number of request.stream() timeouts exceeded the maximum ({self.MAX_STREAM_TIMEOUTS})")
                 if verbose:
-                    print(f"Stream timeout {timeouts}/{self.MAX_STREAM_TIMEOUTS}, retrying...")
+                    logger.warning(f"Stream timeout {timeouts}/{self.MAX_STREAM_TIMEOUTS}, retrying...")
                 continue
                 
             except Exception as e:
@@ -1386,11 +1537,11 @@ class RunPodModel(TranscriptionModel):
             data_source = blob
         else:
             raise ValueError("Must specify either 'path', 'url', or 'blob'")
-                
+        
         if verbose:
-            print(f"Using RunPod engine with model: {self.model}")
-            print(f"Payload type: {payload_type}")
-            print(f"Data source: {data_source}")
+            logger.info(f"Using RunPod engine with model: {self.model}")
+            logger.info(f"Payload type: {payload_type}")
+            logger.info(f"Data source: {data_source}")
         
         # Prepare payload
         payload = {
@@ -1437,7 +1588,7 @@ class RunPodModel(TranscriptionModel):
         
         # Wait for task to be queued
         if verbose:
-            print("Waiting for task to be queued...")
+            logger.info("Waiting for task to be queued...")
         
         for i in range(self.IN_QUEUE_TIMEOUT):
             status = await run_request.status()
@@ -1447,7 +1598,7 @@ class RunPodModel(TranscriptionModel):
             break
         
         if verbose:
-            print(f"Task status: {await run_request.status()}")
+            logger.info(f"Task status: {await run_request.status()}")
         
         # Collect streaming results
         timeouts = 0
@@ -1467,7 +1618,7 @@ class RunPodModel(TranscriptionModel):
                 if timeouts > self.MAX_STREAM_TIMEOUTS:
                     raise Exception(f"Number of request.stream() timeouts exceeded the maximum ({self.MAX_STREAM_TIMEOUTS})")
                 if verbose:
-                    print(f"Stream timeout {timeouts}/{self.MAX_STREAM_TIMEOUTS}, retrying...")
+                    logger.warning(f"Stream timeout {timeouts}/{self.MAX_STREAM_TIMEOUTS}, retrying...")
                 continue
                 
             except Exception as e:
@@ -1490,11 +1641,12 @@ def load_model(
     Load a transcription model for the specified engine and model.
     
     Args:
-        engine: Transcription engine to use ('faster-whisper', 'stable-whisper', 'runpod')
+        engine: Transcription engine to use ('faster-whisper', 'stable-whisper', 'whisper-cpp', 'runpod')
         model: Model name for the selected engine
         **kwargs: Additional arguments for specific engines. Known arguments include:
             - faster-whisper: device, local_files_only, compute_type, and any other arguments accepted by WhisperModel
             - stable-whisper: device, local_files_only, compute_type, and any other arguments accepted by stable_whisper.load_faster_whisper
+            - whisper-cpp: n_threads, and any other arguments accepted by pywhispercpp.model.Model
             - runpod: api_key (required), endpoint_id (required), core_engine
                      
             Any additional kwargs not recognized by the model wrapper will be passed directly
@@ -1511,7 +1663,9 @@ def load_model(
         return FasterWhisperModel(model=model, **kwargs)
     elif engine == "stable-whisper":
         return StableWhisperModel(model=model, **kwargs)
+    elif engine == "whisper-cpp":
+        return WhisperCppModel(model=model, **kwargs)
     elif engine == "runpod":
         return RunPodModel(model=model, **kwargs)
     else:
-        raise ValueError(f"Unsupported engine: {engine}. Supported engines: 'faster-whisper', 'stable-whisper', 'runpod'")
+        raise ValueError(f"Unsupported engine: {engine}. Supported engines: 'faster-whisper', 'stable-whisper', 'whisper-cpp', 'runpod'")

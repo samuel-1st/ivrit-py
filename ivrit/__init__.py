@@ -9,7 +9,7 @@ try:
 except:
     __version__ = 'dev'
 
-from .audio import load_model, TranscriptionModel, TranscriptionSession, FasterWhisperModel, StableWhisperModel, RunPodModel
+from .audio import load_model, TranscriptionModel, TranscriptionSession, FasterWhisperModel, StableWhisperModel, WhisperCppModel, RunPodModel
 from .types import Segment
 
 __all__ = ['load_model', 'TranscriptionModel', 'TranscriptionSession', 'Segment'] 
