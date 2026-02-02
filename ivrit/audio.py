@@ -1217,15 +1217,18 @@ class RunPodSessionManager(RemoteServiceSession):
     
     async def keep_alive(self) -> None:
         """
-        Send a keep-alive request by checking endpoint health.
+        Send a keep-alive request by checking job status or endpoint health.
         
-        This makes a lightweight status check to keep the worker warm.
+        This makes a lightweight request to keep the worker warm.
+        Note: The /health endpoint may not be available on all RunPod deployments.
+        If unavailable, the periodic job submissions themselves will keep workers warm.
         """
         if self._last_job_id:
             try:
                 async with aiohttp.ClientSession() as session:
+                    # Check status of last job as a keep-alive
                     async with session.get(
-                        f"{self.base_url}/health",
+                        f"{self.base_url}/status/{self._last_job_id}",
                         headers=self.headers,
                         timeout=aiohttp.ClientTimeout(total=5.0)
                     ) as response:
@@ -1246,16 +1249,6 @@ class RunPodSessionManager(RemoteServiceSession):
                 except asyncio.CancelledError:
                     pass
             self._keep_alive_task = None
-    
-    def __del__(self):
-        """Cleanup when object is destroyed."""
-        if self._keep_alive_task and not self._keep_alive_task.done():
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self.close())
-            except Exception:
-                pass
 
 
 class RunPodJob:
@@ -1747,9 +1740,6 @@ class RunPodModel(TranscriptionModel):
         # Ensure session is active if using persistent sessions
         if self.use_persistent_session and self._session_manager:
             await self._session_manager.get_session()
-            if self._session_manager._last_job_id:
-                # Update last job tracking
-                pass
         
         # Create and execute RunPod job using native async
         run_request = AsyncRunPodJob(self.api_key, self.endpoint_id, payload)

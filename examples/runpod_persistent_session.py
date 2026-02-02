@@ -93,4 +93,13 @@ async def example_manual_cleanup():
 
 if __name__ == "__main__":
     # Run the persistent session example
-    print("See examples above for usage patterns")
+    print("Example: RunPod Persistent Session")
+    print("=" * 50)
+    print("\nTo run this example, you'll need:")
+    print("1. A valid RunPod API key")
+    print("2. A RunPod endpoint ID")
+    print("3. Audio files to transcribe")
+    print("\nUpdate the api_key, endpoint_id, and audio file paths in the examples above.")
+    print("\nThen run:")
+    print("  asyncio.run(example_persistent_session())")
+
